@@ -4,7 +4,7 @@ import mysql from 'mysql2/promise';
 
 export const config = {
   runtime: 'nodejs18.x',
-  maxDuration: 60, // 5 minutes max duration
+  maxDuration: 60, // 60 seconds max duration (Hobby plan limit)
 };
 
 // Database configuration using environment variables
@@ -16,99 +16,174 @@ const dbConfig = {
   database: process.env.DB_NAME,
 };
 
+// Get the last processed page and last movie name
+async function getScraperState() {
+  const connection = await mysql.createConnection(dbConfig);
+  try {
+    // Create scraper_state table if it doesn't exist
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS scraper_state (
+        id INT PRIMARY KEY AUTO_INCREMENT,
+        last_page INT NOT NULL DEFAULT 1,
+        last_movie_name VARCHAR(255),
+        completed BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Get the latest state
+    const [rows] = await connection.execute(`
+      SELECT * FROM scraper_state ORDER BY id DESC LIMIT 1
+    `);
+    
+    // If no state exists, create a new one
+    if (rows.length === 0) {
+      await connection.execute(`
+        INSERT INTO scraper_state (last_page, completed) VALUES (1, FALSE)
+      `);
+      return { lastPage: 1, lastMovieName: null, completed: false };
+    }
+    
+    return {
+      lastPage: rows[0].last_page,
+      lastMovieName: rows[0].last_movie_name,
+      completed: rows[0].completed === 1
+    };
+  } finally {
+    await connection.end();
+  }
+}
+
+// Update scraper state
+async function updateScraperState(lastPage, lastMovieName = null, completed = false) {
+  const connection = await mysql.createConnection(dbConfig);
+  try {
+    await connection.execute(`
+      INSERT INTO scraper_state (last_page, last_movie_name, completed) 
+      VALUES (?, ?, ?)
+    `, [lastPage, lastMovieName, completed]);
+  } finally {
+    await connection.end();
+  }
+}
+
+// Get the last movie in database for comparison
 async function getLastMovieName() {
   const connection = await mysql.createConnection(dbConfig);
-  const [rows] = await connection.execute('SELECT name FROM movies ORDER BY id DESC LIMIT 1');
-  await connection.end();
-  return rows.length ? rows[0].name : null;
+  try {
+    const [rows] = await connection.execute('SELECT name FROM movies ORDER BY id DESC LIMIT 1');
+    return rows.length ? rows[0].name : null;
+  } finally {
+    await connection.end();
+  }
 }
 
 async function insertNewMovies(movies) {
   const connection = await mysql.createConnection(dbConfig);
+  const insertedMovies = [];
 
-  for (const movie of movies) {
-    try {
-      // Insert into movies
-      const [result] = await connection.execute(`
-        INSERT INTO movies (name, description, duration, quality, rating, release_date, language, iframe_src, poster, poster_alt, url, year)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [
-        movie.name,
-        movie.description,
-        movie.duration?.startsWith('Duration:') ? movie.duration.replace(/^Duration:\s*/, '') : movie.duration,
-        movie.quality,
-        movie.rating,
-        new Date(movie.release_date),
-        movie.language,
-        movie.iframe_src,
-        movie.poster,
-        movie.poster_alt,
-        movie.url,
-        movie.year
-      ]);
+  try {
+    for (const movie of movies) {
+      try {
+        // Insert into movies
+        const [result] = await connection.execute(`
+          INSERT INTO movies (name, description, duration, quality, rating, release_date, language, iframe_src, poster, poster_alt, url, year)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          movie.name,
+          movie.description,
+          movie.duration?.startsWith('Duration:') ? movie.duration.replace(/^Duration:\s*/, '') : movie.duration,
+          movie.quality,
+          movie.rating,
+          new Date(movie.release_date),
+          movie.language,
+          movie.iframe_src,
+          movie.poster,
+          movie.poster_alt,
+          movie.url,
+          movie.year
+        ]);
 
-      const movieId = result.insertId;
+        const movieId = result.insertId;
 
-      // Insert download links
-      for (const link of movie.download_links) {
-        await connection.execute(`
-          INSERT INTO download_links (movie_id, label, url)
-          VALUES (?, ?, ?)
-        `, [movieId, link.label, link.url]);
-      }
-
-      // Insert genres
-      for (const genre of movie.genre || []) {
-        const [rows] = await connection.execute(`SELECT id FROM genres WHERE name = ?`, [genre]);
-        let genreId = rows[0]?.id;
-
-        if (!genreId) {
-          const [genreResult] = await connection.execute(`INSERT INTO genres (name) VALUES (?)`, [genre]);
-          genreId = genreResult.insertId;
+        // Insert download links
+        for (const link of movie.download_links) {
+          await connection.execute(`
+            INSERT INTO download_links (movie_id, label, url)
+            VALUES (?, ?, ?)
+          `, [movieId, link.label, link.url]);
         }
 
-        await connection.execute(`
-          INSERT INTO movie_genres (movie_id, genre_id)
-          VALUES (?, ?)
-        `, [movieId, genreId]);
-      }
+        // Insert genres
+        for (const genre of movie.genre || []) {
+          const [rows] = await connection.execute(`SELECT id FROM genres WHERE name = ?`, [genre]);
+          let genreId = rows[0]?.id;
 
-      // Insert tags
-      for (const tag of movie.tags || []) {
-        const [rows] = await connection.execute(`SELECT id FROM tags WHERE name = ?`, [tag]);
-        let tagId = rows[0]?.id;
+          if (!genreId) {
+            const [genreResult] = await connection.execute(`INSERT INTO genres (name) VALUES (?)`, [genre]);
+            genreId = genreResult.insertId;
+          }
 
-        if (!tagId) {
-          const [tagResult] = await connection.execute(`INSERT INTO tags (name) VALUES (?)`, [tag]);
-          tagId = tagResult.insertId;
+          await connection.execute(`
+            INSERT INTO movie_genres (movie_id, genre_id)
+            VALUES (?, ?)
+          `, [movieId, genreId]);
         }
 
-        await connection.execute(`
-          INSERT INTO movie_tags (movie_id, tag_id)
-          VALUES (?, ?)
-        `, [movieId, tagId]);
-      }
+        // Insert tags
+        for (const tag of movie.tags || []) {
+          const [rows] = await connection.execute(`SELECT id FROM tags WHERE name = ?`, [tag]);
+          let tagId = rows[0]?.id;
 
-      console.log(`✅ Inserted: ${movie.name}`);
-    } catch (err) {
-      console.error(`❌ Failed to insert movie "${movie.name}":`, err.message);
+          if (!tagId) {
+            const [tagResult] = await connection.execute(`INSERT INTO tags (name) VALUES (?)`, [tag]);
+            tagId = tagResult.insertId;
+          }
+
+          await connection.execute(`
+            INSERT INTO movie_tags (movie_id, tag_id)
+            VALUES (?, ?)
+          `, [movieId, tagId]);
+        }
+
+        insertedMovies.push(movie.name);
+        console.log(`✅ Inserted: ${movie.name}`);
+      } catch (err) {
+        console.error(`❌ Failed to insert movie "${movie.name}":`, err.message);
+      }
     }
+  } finally {
+    await connection.end();
   }
-
-  await connection.end();
+  
+  return insertedMovies;
 }
 
-async function scrapeLatestMovies() {
+async function scrapeMoviesIncrementally() {
   const bearerToken = process.env.SCRAPER_API_TOKEN;
-  const latestMovieName = await getLastMovieName();
-  const newMovies = [];
-
-  let page = 1;
-  let stop = false;
-  let stats = { pages: 0, totalFound: 0, newMovies: 0 };
-
-  while (!stop) {
-    try {
+  const dbLastMovieName = await getLastMovieName();
+  const state = await getScraperState();
+  
+  // If the previous run was completed, start a new run
+  if (state.completed) {
+    await updateScraperState(1, null, false);
+    state.lastPage = 1;
+    state.lastMovieName = null;
+    state.completed = false;
+  }
+  
+  let page = state.lastPage;
+  let foundLastMovie = false;
+  let newMovies = [];
+  let stats = { processedPages: 0, moviesFound: 0, moviesInserted: 0 };
+  const maxPagesToProcess = 2; // Process limited pages per run to stay within 60-second limit
+  
+  try {
+    // Process a limited number of pages per execution
+    for (let i = 0; i < maxPagesToProcess; i++) {
+      console.log(`Processing page ${page}...`);
+      
       const response = await fetch('https://mkvking-scraper.vercel.app/api/movies', {
         method: 'POST',
         headers: {
@@ -124,43 +199,61 @@ async function scrapeLatestMovies() {
       }
 
       const data = await response.json();
-      if (!data.movies || !Array.isArray(data.movies) || data.movies.length === 0) break;
-
-      stats.pages++;
-      stats.totalFound += data.movies.length;
-
-      for (const movie of data.movies) {
-        if (movie.name === latestMovieName) {
-          stop = true;
-          break;
-        }
-        newMovies.push(movie);
+      if (!data.movies || !Array.isArray(data.movies) || data.movies.length === 0) {
+        // No more movies, mark as completed
+        await updateScraperState(page, state.lastMovieName, true);
+        break;
       }
 
-      console.log(`Page ${page}: Collected ${data.movies.length} movies (New so far: ${newMovies.length})`);
-      page++;
+      stats.processedPages++;
+      stats.moviesFound += data.movies.length;
       
-      // Add a safety check for Vercel's execution time limits
-      if (page > 20) break; // Limit the number of pages to prevent timeout
+      // Collect new movies until we find one that's already in our database
+      let moviesForThisPage = [];
+      for (const movie of data.movies) {
+        if (movie.name === dbLastMovieName) {
+          foundLastMovie = true;
+          break;
+        }
+        moviesForThisPage.push(movie);
+      }
       
-    } catch (error) {
-      console.error(`Error fetching page ${page}:`, error);
-      break;
+      // If we found the last movie, we've caught up
+      if (foundLastMovie) {
+        newMovies = [...newMovies, ...moviesForThisPage];
+        await updateScraperState(page, moviesForThisPage[0]?.name || state.lastMovieName, true);
+        break;
+      } else {
+        newMovies = [...newMovies, ...moviesForThisPage];
+        page++;
+        // Save our progress
+        await updateScraperState(page, moviesForThisPage[0]?.name || state.lastMovieName, false);
+      }
     }
+    
+    // Insert all found movies (oldest first)
+    if (newMovies.length > 0) {
+      const insertedMovies = await insertNewMovies(newMovies.reverse());
+      stats.moviesInserted = insertedMovies.length;
+    }
+    
+    return {
+      success: true,
+      stats,
+      completed: foundLastMovie,
+      nextPage: page,
+      message: foundLastMovie 
+        ? `Completed: Found and processed ${stats.moviesInserted} new movies` 
+        : `In progress: Processed ${stats.processedPages} pages, inserted ${stats.moviesInserted} new movies, will continue from page ${page} next run`
+    };
+    
+  } catch (error) {
+    console.error('Error during incremental scraping:', error);
+    // Save the current state to resume later
+    await updateScraperState(page, state.lastMovieName, false);
+    
+    throw error;
   }
-
-  stats.newMovies = newMovies.length;
-  console.log(`\n✅ Found ${newMovies.length} new movies.`);
-  
-  if (newMovies.length > 0) {
-    await insertNewMovies(newMovies.reverse()); // Insert from oldest to newest
-  }
-
-  return {
-    success: true,
-    stats,
-    message: `Scraped ${stats.pages} pages, found ${stats.newMovies} new movies`
-  };
 }
 
 export default async function handler(req, res) {
@@ -170,7 +263,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const result = await scrapeLatestMovies();
+    const result = await scrapeMoviesIncrementally();
     return res.status(200).json(result);
   } catch (error) {
     console.error('Scraper error:', error);

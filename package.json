@@ -1,0 +1,20 @@
+{
+  "name": "movie-scraper-cron",
+  "version": "1.0.0",
+  "description": "Movie scraper with scheduled runs on Vercel",
+  "type": "module",
+  "engines": {
+    "node": ">=18.x"
+  },
+  "dependencies": {
+    "mysql2": "^3.6.0",
+    "node-fetch": "^3.3.2"
+  },
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel deploy --prod"
+  },
+  "devDependencies": {
+    "vercel": "^30.2.3"
+  }
+}

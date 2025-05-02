@@ -1,18 +1,18 @@
 {
-    "version": 2,
-    "crons": [
-      {
-        "path": "/api/scrape",
-        "schedule": "0 13 * * *"
-      }
-    ],
-    "functions": {
-      "api/scrape.js": {
-        "memory": 1024,
-        "maxDuration": 300
-      }
-    },
-    "env": {
-      "NODE_ENV": "production"
+  "version": 2,
+  "crons": [
+    {
+      "path": "/api/scrape",
+      "schedule": "0 13 * * *"
     }
+  ],
+  "functions": {
+    "api/scrape.js": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
+  "env": {
+    "NODE_ENV": "production"
+  }
 }

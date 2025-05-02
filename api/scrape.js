@@ -1,10 +1,10 @@
 // api/scrape.js
-import fetch from 'node-fetch';
-import mysql from 'mysql2/promise';
+const fetch = require('node-fetch');
+const mysql = require('mysql2/promise');
 
-export const config = {
-  runtime: 'nodejs18.x',
-  maxDuration: 60, // 60 seconds max duration (Hobby plan limit)
+// Vercel serverless configuration
+exports.config = {
+  maxDuration: 60 // 60 seconds max duration (Hobby plan limit)
 };
 
 // Database configuration using environment variables
@@ -256,7 +256,7 @@ async function scrapeMoviesIncrementally() {
   }
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Only process GET requests or cron job requests
   if (req.method !== 'GET' && !req.headers['x-vercel-cron']) {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -272,4 +272,4 @@ export default async function handler(req, res) {
       message: error.message 
     });
   }
-}
+};

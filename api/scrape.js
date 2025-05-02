@@ -4,7 +4,7 @@ import mysql from 'mysql2/promise';
 
 export const config = {
   runtime: 'nodejs18.x',
-  maxDuration: 300, // 5 minutes max duration
+  maxDuration: 60, // 5 minutes max duration
 };
 
 // Database configuration using environment variables

@@ -88,7 +88,7 @@ async function insertNewMovies(movies) {
       try {
         // Insert into movies
         const [result] = await connection.execute(`
-          INSERT INTO movies (name, description, duration, quality, rating, release_date, language, iframe_src, poster, poster_alt, url, year)
+          INSERT INTO movies (name, description, duration, quality, rating, release_date, language, iframe_src, poster, poster_alt, url, year, backdrop_path)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           movie.name,
@@ -102,7 +102,8 @@ async function insertNewMovies(movies) {
           movie.poster,
           movie.poster_alt,
           movie.url,
-          movie.year
+          movie.year,
+          movie.backdrop_path
         ]);
 
         const movieId = result.insertId;

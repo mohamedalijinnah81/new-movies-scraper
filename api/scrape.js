@@ -177,7 +177,7 @@ async function scrapeMoviesIncrementally() {
   let foundLastMovie = false;
   let newMovies = [];
   let stats = { processedPages: 0, moviesFound: 0, moviesInserted: 0 };
-  const maxPagesToProcess = 2; // Process limited pages per run to stay within 60-second limit
+  const maxPagesToProcess = 4; // Process limited pages per run to stay within 60-second limit
   
   try {
     // Process a limited number of pages per execution

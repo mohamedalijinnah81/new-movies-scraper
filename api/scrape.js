@@ -89,7 +89,7 @@ async function insertNewMovies(movies) {
         // Insert into movies
         const [result] = await connection.execute(`
           INSERT INTO movies (name, description, duration, quality, rating, release_date, language, iframe_src, poster, poster_alt, url, year, backdrop_path)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           movie.name,
           movie.description,

@@ -20,7 +20,7 @@ const dbConfig = {
 // Trigger the revalidation webhooks
 async function triggerRevalidate() {
   try {
-    const response = await axios.get('https://cinebucket-dev.vercel.app/api/revalidate', {
+    const response = await axios.get('https://cinebucket.vercel.app/api/revalidate', {
       params: { secret: 'revalidatedbyjinnah' },
     });
     console.log('Revalidation triggered:', response.data);

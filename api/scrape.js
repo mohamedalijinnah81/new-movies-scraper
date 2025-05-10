@@ -1,6 +1,7 @@
 // api/scrape.js
 const fetch = require('node-fetch');
 const mysql = require('mysql2/promise');
+const axios = require('axios');
 
 // Vercel serverless configuration
 exports.config = {
@@ -15,6 +16,18 @@ const dbConfig = {
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
 };
+
+// Trigger the revalidation webhooks
+async function triggerRevalidate() {
+  try {
+    const response = await axios.get('https://cinebucket-dev.vercel.app/api/revalidate', {
+      params: { secret: 'revalidatedbyjinnah' },
+    });
+    console.log('Revalidation triggered:', response.data);
+  } catch (err) {
+    console.error('Failed to revalidate:', err.message);
+  }
+}
 
 // Get the last processed page and last movie name
 async function getScraperState() {
@@ -235,6 +248,7 @@ async function scrapeMoviesIncrementally() {
     // Insert all found movies (oldest first)
     if (newMovies.length > 0) {
       const insertedMovies = await insertNewMovies(newMovies.reverse());
+      await triggerRevalidate();
       stats.moviesInserted = insertedMovies.length;
     }
     

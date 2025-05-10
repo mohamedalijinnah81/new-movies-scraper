@@ -163,6 +163,7 @@ async function insertNewMovies(movies) {
 
         insertedMovies.push(movie.name);
         console.log(`✅ Inserted: ${movie.name}`);
+        await triggerRevalidate();
       } catch (err) {
         console.error(`❌ Failed to insert movie "${movie.name}":`, err.message);
       }
@@ -248,7 +249,6 @@ async function scrapeMoviesIncrementally() {
     // Insert all found movies (oldest first)
     if (newMovies.length > 0) {
       const insertedMovies = await insertNewMovies(newMovies.reverse());
-      await triggerRevalidate();
       stats.moviesInserted = insertedMovies.length;
     }
     

@@ -81,6 +81,18 @@ async function updateScraperState(lastPage, lastMovieName = null, completed = fa
   }
 }
 
+async function dropScraperStateTable() {
+  const connection = await mysql.createConnection(dbConfig);
+  try {
+    await connection.execute(`DROP TABLE IF EXISTS scraper_state`);
+    console.log('✅ Dropped scraper_state table');
+  } catch (err) {
+    console.error('❌ Failed to drop scraper_state table:', err.message);
+  } finally {
+    await connection.end();
+  }
+}
+
 // Get the last movie in database for comparison
 async function getLastMovieName() {
   const connection = await mysql.createConnection(dbConfig);
@@ -251,6 +263,10 @@ async function scrapeMoviesIncrementally() {
       const insertedMovies = await insertNewMovies(newMovies.reverse());
       stats.moviesInserted = insertedMovies.length;
     }
+
+    if (foundLastMovie) {
+      await dropScraperStateTable();
+    }
     
     return {
       success: true,
@@ -258,7 +274,7 @@ async function scrapeMoviesIncrementally() {
       completed: foundLastMovie,
       nextPage: page,
       message: foundLastMovie 
-        ? `Completed: Found and processed ${stats.moviesInserted} new movies` 
+        ? `Completed: Found and processed ${stats.moviesInserted} new movies. Dropped scraper_state table.` 
         : `In progress: Processed ${stats.processedPages} pages, inserted ${stats.moviesInserted} new movies, will continue from page ${page} next run`
     };
     

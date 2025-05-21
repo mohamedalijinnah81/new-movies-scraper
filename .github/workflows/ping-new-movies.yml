@@ -12,4 +12,4 @@ jobs:
 
     steps:
       - name: Run cURL on Website
-        run: curl -I https://new-movies-scraper.vercel.app/api/scrape
+        run: curl -sSf https://new-movies-scraper.vercel.app/api/scrape

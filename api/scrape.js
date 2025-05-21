@@ -264,9 +264,7 @@ async function scrapeMoviesIncrementally() {
       stats.moviesInserted = insertedMovies.length;
     }
 
-    if (foundLastMovie) {
-      await dropScraperStateTable();
-    }
+    await dropScraperStateTable();
     
     return {
       success: true,
@@ -274,7 +272,7 @@ async function scrapeMoviesIncrementally() {
       completed: foundLastMovie,
       nextPage: page,
       message: foundLastMovie 
-        ? `Completed: Found and processed ${stats.moviesInserted} new movies. Dropped scraper_state table.` 
+        ? `Completed: Found and processed ${stats.moviesInserted} new movies.` 
         : `In progress: Processed ${stats.processedPages} pages, inserted ${stats.moviesInserted} new movies, will continue from page ${page} next run`
     };
     

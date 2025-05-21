@@ -1,0 +1,15 @@
+# Simulated daily request to scrape new movies
+name: Daily new movies ping
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Runs daily at midnight UTC
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  curl-website:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run cURL on Website
+        run: curl -I https://new-movies-scraper.vercel.app/api/scrape
